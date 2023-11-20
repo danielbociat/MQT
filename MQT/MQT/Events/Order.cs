@@ -1,4 +1,7 @@
-﻿namespace MQT.Events;
+﻿using System;
+using System.Collections.Generic;
+
+namespace MQT.Events;
 
 public class Order
 {
