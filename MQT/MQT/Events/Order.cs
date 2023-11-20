@@ -4,8 +4,7 @@ public class Order
 {
     public DateTime Time { get; set; }
     public string Id { get; set; }
-    public string ClientFirstName { get; set; }
-    public string ClientLastName { get; set; }
-    public string ClientAddress { get; set; }
+    public Client Client { get; set; }
+    public string Address { get; set; }
     public IDictionary<Product, int> ProductQuantities { get; set; }
 }
