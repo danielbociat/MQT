@@ -24,43 +24,61 @@ public class OrdersController: ControllerBase
     }
 
     [HttpGet]
-    public IActionResult ConsumeItemsForTime(int seconds)
+    public IActionResult ConsumeItemsForTime(string clientId)
+    {
+        var list = new List<Order>();
+        GetOrders(o => { AddOrderToList(o, list, clientId); });
+        return Ok(list);
+    }
+
+    private static void AddOrderToList(Order order, IList<Order> orders, string clientId)
+    {
+        if (order.Client.Id.Equals(clientId))
+        {
+            orders.Add(order);
+        }
+    }
+
+    private void GetOrders(Action<Order> func)
     {
         var items = new List<string>();
-        var orders = new List<Order>();
 
-        using (var consumer = new ConsumerBuilder<Ignore, string>(_consumerConfig).Build())
+        using var consumer = new ConsumerBuilder<Ignore, string>(_consumerConfig).Build();
+
+        consumer.Subscribe("topicTest1");
+
+        var time = TimeSpan.FromMilliseconds(10000);
+        while (true)
         {
-            consumer.Subscribe("topicTest1");
-
-            var watch = new Stopwatch();
-            watch.Start();
-            
-            while (seconds < 0 || watch.ElapsedMilliseconds / 1000 <= seconds)
+            var consumeResult = consumer.Consume(time);
+            if (consumeResult is null)
             {
-                var consumeResult = consumer.Consume();
-                
-                var value = consumeResult.Message.Value;
-
-                Console.WriteLine(value);
-
-                try
-                {
-                    var v = JsonSerializer.Deserialize<Order>(value);
-                    orders.Add(v);
-                    Console.WriteLine("Success Deserialization!");
-                }
-                catch (Exception)
-                {
-                }
-
-                items.Add(value);
+                break;
             }
-            watch.Stop();
 
-            consumer.Close();
+            var value = consumeResult.Message.Value;
+
+            Console.WriteLine(value);
+
+            try
+            {
+                var order = JsonSerializer.Deserialize<Order>(value);
+
+                if(order is not null)
+                {
+                    func(order);
+                }
+
+                Console.WriteLine("Success Deserialization!");
+            }
+            catch (Exception)
+            { }
+
+            items.Add(value);
+
+            time = TimeSpan.FromMilliseconds(100);
         }
 
-        return Ok(orders);
+        consumer.Close();
     }
 }
