@@ -17,8 +17,9 @@ public class OrdersController: ControllerBase
         _consumerConfig = new ConsumerConfig
         {
             BootstrapServers = "localhost:9092",
-            GroupId = "foo",
-            AutoOffsetReset = AutoOffsetReset.Earliest
+            GroupId = "alwaysReadFullData",
+            AutoOffsetReset = AutoOffsetReset.Earliest,
+            EnableAutoCommit = false
         };
     }
 
@@ -32,19 +33,12 @@ public class OrdersController: ControllerBase
         {
             consumer.Subscribe("topicTest1");
 
-            Stopwatch watch = new Stopwatch();
+            var watch = new Stopwatch();
             watch.Start();
-
-            var cancelled = false;
             
-            while (!cancelled)
+            while (seconds < 0 || watch.ElapsedMilliseconds / 1000 <= seconds)
             {
                 var consumeResult = consumer.Consume();
-
-                if (seconds > 0 && watch.ElapsedMilliseconds / 1000 >= seconds)
-                {
-                    cancelled = true;
-                }
                 
                 var value = consumeResult.Message.Value;
 
@@ -56,9 +50,8 @@ public class OrdersController: ControllerBase
                     orders.Add(v);
                     Console.WriteLine("Success Deserialization!");
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
-                    Console.WriteLine(ex);
                 }
 
                 items.Add(value);
