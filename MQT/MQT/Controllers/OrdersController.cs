@@ -10,21 +10,37 @@ namespace MQT.Controllers;
 [Route("/api/orders")]
 public class OrdersController: ControllerBase
 {
-    private readonly ConsumerConfig _consumerConfig;
-    
-    public OrdersController()
+    private readonly ConsumerConfig _consumerConfig = new()
     {
-        _consumerConfig = new ConsumerConfig
-        {
-            BootstrapServers = "localhost:9092",
-            GroupId = "alwaysReadFullData",
-            AutoOffsetReset = AutoOffsetReset.Earliest,
-            EnableAutoCommit = false
-        };
-    }
+        BootstrapServers = "localhost:9092",
+        GroupId = "alwaysReadFullData",
+        AutoOffsetReset = AutoOffsetReset.Earliest,
+        EnableAutoCommit = false
+    };
 
-    [HttpGet]
-    public IActionResult GetOrdersForCustomer(string clientId)
+    [HttpGet("shortandlong")]
+    public IActionResult GetShortestAndLongestOrder()
+    {
+        Order? shortestOrder = null;
+        Order? longestOrder = null;
+        GetOrders(order =>
+        {
+            if (order.DeliveryTime != null)
+            {
+                var orderTime = GetOrderTime(order);
+                
+                if (shortestOrder is null || GetOrderTime(shortestOrder) > orderTime)
+                    shortestOrder = order;
+                
+                if (longestOrder is null || GetOrderTime(longestOrder) < orderTime)
+                    longestOrder = order;
+            }
+        });
+        return Ok(new { shortestOrder, longestOrder });
+    }
+    
+    [HttpGet("{clientId}")]
+    public IActionResult GetOrdersForCustomer([FromRoute] string clientId)
     {
         var list = new List<Order>();
         GetOrders(o => { AddOrderToList(o, list, clientId); });
@@ -38,6 +54,9 @@ public class OrdersController: ControllerBase
             orders.Add(order);
         }
     }
+
+    private static long GetOrderTime(Order order)
+        => order.DeliveryTime!.Value.Ticks - order.CreatedTime.Ticks;
 
     private void GetOrders(Action<Order> func)
     {
@@ -64,15 +83,17 @@ public class OrdersController: ControllerBase
             {
                 var order = JsonSerializer.Deserialize<Order>(value);
 
-                if(order is not null)
+                if (order is not null)
                 {
                     func(order);
                 }
 
                 Console.WriteLine("Success Deserialization!");
             }
-            catch (Exception)
-            { }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
 
             items.Add(value);
 

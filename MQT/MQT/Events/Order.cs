@@ -5,7 +5,8 @@ namespace MQT.Events;
 
 public class Order
 {
-    public DateTime Time { get; set; }
+    public DateTime CreatedTime { get; set; }
+    public DateTime? DeliveryTime { get; set; }
     public string Id { get; set; }
     public Client Client { get; set; }
     public string Address { get; set; }
