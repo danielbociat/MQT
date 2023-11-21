@@ -9,5 +9,5 @@ public class Order
     public string Id { get; set; }
     public Client Client { get; set; }
     public string Address { get; set; }
-    public IDictionary<Product, int> ProductQuantities { get; set; }
+    public IEnumerable<Tuple<Product, int>> ProductQuantities { get; set; }
 }

@@ -1,8 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using Confluent.Kafka;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using MQT.Events;
 
 namespace MQT.Controllers;
 
@@ -26,7 +26,8 @@ public class OrdersController: ControllerBase
     public IActionResult ConsumeItemsForTime(int seconds)
     {
         var items = new List<string>();
-        
+        var orders = new List<Order>();
+
         using (var consumer = new ConsumerBuilder<Ignore, string>(_consumerConfig).Build())
         {
             consumer.Subscribe("topicTest1");
@@ -45,15 +46,28 @@ public class OrdersController: ControllerBase
                     cancelled = true;
                 }
                 
-                Console.WriteLine(consumeResult.Message.Value);
-                
-                items.Add(consumeResult.Message.Value);
+                var value = consumeResult.Message.Value;
+
+                Console.WriteLine(value);
+
+                try
+                {
+                    var v = JsonSerializer.Deserialize<Order>(value);
+                    orders.Add(v);
+                    Console.WriteLine("Success Deserialization!");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex);
+                }
+
+                items.Add(value);
             }
             watch.Stop();
 
             consumer.Close();
         }
 
-        return Ok(items);
+        return Ok(orders);
     }
 }
