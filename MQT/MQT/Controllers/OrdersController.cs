@@ -24,7 +24,7 @@ public class OrdersController: ControllerBase
     }
 
     [HttpGet]
-    public IActionResult ConsumeItemsForTime(string clientId)
+    public IActionResult GetOrdersForCustomer(string clientId)
     {
         var list = new List<Order>();
         GetOrders(o => { AddOrderToList(o, list, clientId); });
