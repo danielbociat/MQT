@@ -47,6 +47,30 @@ public class OrdersController: ControllerBase
         return Ok(list);
     }
 
+    [HttpGet("topProducts/{productsNumber}")]
+    public IActionResult GetTopProducts([FromRoute] int productsNumber)
+    {
+        var dict = new Dictionary<Product, int>();
+        GetOrders(o => { GetProducts(o, dict); });
+        var topProducts = dict.OrderByDescending(kv => kv.Value).ToList().Take(productsNumber);
+        return Ok(topProducts);
+    }
+
+    private static void GetProducts(Order order, Dictionary<Product, int> dict)
+    {
+        foreach(var (k,v) in order.ProductQuantities)
+        {
+            if(dict.TryGetValue(k, out var _))
+            {
+                dict[k] += v;
+            }
+            else
+            {
+                dict.Add(k,v);
+            }
+        }
+    }
+
     private static void AddOrderToList(Order order, IList<Order> orders, string clientId)
     {
         if (order.Client.Id.Equals(clientId))
