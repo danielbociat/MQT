@@ -86,7 +86,25 @@ public class OrdersController: ControllerBase
     {
         var items = new List<string>();
 
-        using var consumer = new ConsumerBuilder<Ignore, string>(_consumerConfig).Build();
+        using var consumer = new ConsumerBuilder<Ignore, string>(_consumerConfig).SetPartitionsAssignedHandler((c, p) =>
+        {
+            var partitions = new List<TopicPartitionOffset>();
+            foreach(var part in p)
+            {
+                var watermark = c.GetWatermarkOffsets(part);
+                var desiredOffset = watermark.High - 1;
+
+                if(desiredOffset <= watermark.Low)
+                {
+                    desiredOffset = Offset.Beginning;
+                }
+
+                partitions.Add(new TopicPartitionOffset(part, desiredOffset));
+            }
+
+            c.Assign(partitions);
+
+        }).Build();
 
         consumer.Subscribe("topicTest1");
 
