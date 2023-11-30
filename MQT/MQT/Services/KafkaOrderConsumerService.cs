@@ -30,15 +30,18 @@ public class KafkaOrderConsumerService : IKafkaOrderConsumerService
             var partition = new TopicPartition(topic, new Partition(0));
             var offsets = consumer.QueryWatermarkOffsets(partition, TimeSpan.FromMinutes(1));
 
+            Console.WriteLine(offsets);
             var desiredOffset = new Offset(0);
 
             if (offsets.High > 0)
             {
                 desiredOffset = new Offset(offsets.High.Value - 1);
             }
+
+            var partitionWithOffset = new TopicPartitionOffset(partition, desiredOffset);
             
-            consumer.Assign(partition);
-            consumer.Seek(new TopicPartitionOffset(partition, desiredOffset));
+            consumer.Assign(partitionWithOffset);
+            consumer.Seek(partitionWithOffset);
 
             var consumeResult = consumer.Consume();
             var value = consumeResult.Message.Value;
