@@ -3,6 +3,7 @@ using Confluent.Kafka;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using MQT.Events;
+using MQT.Services;
 
 namespace MQT.Controllers;
 
@@ -10,6 +11,8 @@ namespace MQT.Controllers;
 [Route("/api/orders")]
 public class OrdersController: ControllerBase
 {
+    private readonly IKafkaOrderConsumerService _kafkaOrderConsumerService;
+
     private readonly ConsumerConfig _consumerConfig = new()
     {
         BootstrapServers = "localhost:9092",
@@ -18,42 +21,35 @@ public class OrdersController: ControllerBase
         EnableAutoCommit = false
     };
 
+    public OrdersController(IKafkaOrderConsumerService kafkaOrderConsumerService)
+    {
+        _kafkaOrderConsumerService = kafkaOrderConsumerService;
+    }
+
     [HttpGet("shortandlong")]
     public IActionResult GetShortestAndLongestOrder()
     {
         Order? shortestOrder = null;
         Order? longestOrder = null;
-        GetOrders(order =>
-        {
-            if (order.DeliveryTime != null)
-            {
-                var orderTime = GetOrderTime(order);
-                
-                if (shortestOrder is null || GetOrderTime(shortestOrder) > orderTime)
-                    shortestOrder = order;
-                
-                if (longestOrder is null || GetOrderTime(longestOrder) < orderTime)
-                    longestOrder = order;
-            }
-        });
+        _kafkaOrderConsumerService.TryGetLastShortestOrder(out shortestOrder);
+        _kafkaOrderConsumerService.TryGetLastLongestOrder(out longestOrder);
+        
         return Ok(new { shortestOrder, longestOrder });
     }
     
     [HttpGet("{clientId}")]
     public IActionResult GetOrdersForCustomer([FromRoute] string clientId)
     {
-        var list = new List<Order>();
-        GetOrders(o => { AddOrderToList(o, list, clientId); });
-        return Ok(list);
+        return Ok(GetOrders(clientId));
     }
 
     [HttpGet("topProducts/{productsNumber}")]
     public IActionResult GetTopProducts([FromRoute] int productsNumber)
     {
         var dict = new Dictionary<Product, int>();
-        GetOrders(o => { GetProducts(o, dict); });
-        var topProducts = dict.OrderByDescending(kv => kv.Value).ToList().Take(productsNumber);
-        return Ok(topProducts);
+        // GetOrders(o => { GetProducts(o, dict); });
+        // var topProducts = dict.OrderByDescending(kv => kv.Value).ToList().Take(productsNumber);
+        return Ok(dict);
     }
 
     private static void GetProducts(Order order, Dictionary<Product, int> dict)
@@ -71,44 +67,14 @@ public class OrdersController: ControllerBase
         }
     }
 
-    private static void AddOrderToList(Order order, IList<Order> orders, string clientId)
+    private List<Order> GetOrders(string clientId)
     {
-        if (order.Client.Id.Equals(clientId))
-        {
-            orders.Add(order);
-        }
-    }
+        using var consumer = new ConsumerBuilder<Ignore, string>(_consumerConfig).Build();
 
-    private static long GetOrderTime(Order order)
-        => order.DeliveryTime!.Value.Ticks - order.CreatedTime.Ticks;
+        consumer.Subscribe($"clientTopics-{clientId}");
 
-    private void GetOrders(Action<Order> func)
-    {
-        var items = new List<string>();
-
-        using var consumer = new ConsumerBuilder<Ignore, string>(_consumerConfig).SetPartitionsAssignedHandler((c, p) =>
-        {
-            var partitions = new List<TopicPartitionOffset>();
-            foreach(var part in p)
-            {
-                var watermark = c.GetWatermarkOffsets(part);
-                var desiredOffset = watermark.High - 1;
-
-                if(desiredOffset <= watermark.Low)
-                {
-                    desiredOffset = Offset.Beginning;
-                }
-
-                partitions.Add(new TopicPartitionOffset(part, desiredOffset));
-            }
-
-            c.Assign(partitions);
-
-        }).Build();
-
-        consumer.Subscribe("topicTest1");
-
-        var time = TimeSpan.FromMilliseconds(10000);
+        var time = TimeSpan.FromMilliseconds(1000);
+        var clientOrders = new List<Order>();
         while (true)
         {
             var consumeResult = consumer.Consume(time);
@@ -127,7 +93,7 @@ public class OrdersController: ControllerBase
 
                 if (order is not null)
                 {
-                    func(order);
+                    clientOrders.Add(order);
                 }
 
                 Console.WriteLine("Success Deserialization!");
@@ -136,12 +102,10 @@ public class OrdersController: ControllerBase
             {
                 Console.WriteLine(ex.Message);
             }
-
-            items.Add(value);
-
             time = TimeSpan.FromMilliseconds(100);
         }
 
         consumer.Close();
+        return clientOrders;
     }
 }
