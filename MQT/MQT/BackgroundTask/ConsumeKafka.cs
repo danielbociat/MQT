@@ -129,8 +129,18 @@ public class ConsumeKafka : BackgroundService
 
         try
         {
-            consumer.Subscribe(topic);
-            //consumer.Assign(new TopicPartitionOffset(topic, new Partition(0), Offset.Beginning));
+            var partition = new TopicPartition(topic, new Partition(0));
+            var offsets = consumer.QueryWatermarkOffsets(partition, TimeSpan.FromMinutes(1));
+
+            var desiredOffset = new Offset(0);
+
+            if (offsets.High > 0)
+            {
+                desiredOffset = new Offset(offsets.High.Value - 1);
+            }
+            
+            consumer.Assign(partition);
+            consumer.Seek(new TopicPartitionOffset(partition, desiredOffset));
 
             var consumeResult = consumer.Consume();
             var value = consumeResult.Message.Value;
