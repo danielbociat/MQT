@@ -67,10 +67,8 @@ public class ConsumeKafka : BackgroundService
                 if(order is not null)
                 {
                     HandleLengthOrder(order, value);
-
+                    HandleProductsCount(order);
                     ProduceMessage($"clientTopics-{order.Client.Id}", value);
-                    ProduceMessage("productsTopics", value);
-                    ProduceMessage("lengthTopics", value);
                 }
                
                 //Console.WriteLine("Success Deserialization!");
@@ -119,5 +117,30 @@ public class ConsumeKafka : BackgroundService
     }
 
     private static long GetOrderTime(Order order) => order.DeliveryTime!.Value.Ticks - order.CreatedTime.Ticks;
+    
+    private void HandleProductsCount(Order order)
+    {
+        Dictionary<string, int>? dict = null;
+        _kafkaOrderConsumerService.TryGetLastProductsDictionary(out dict);
+
+        if (dict is null)
+        {
+            dict = new Dictionary<string, int>();
+        }
+        
+        foreach(var (k,v) in order.ProductQuantities)
+        {
+            if(dict.TryGetValue(k.Id, out var _))
+            {
+                dict[k.Id] += v;
+            }
+            else
+            {
+                dict.Add(k.Id,v);
+            }
+        }
+        
+        ProduceMessage("productsCount", JsonSerializer.Serialize(dict));
+    }
 
 }

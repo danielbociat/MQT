@@ -13,11 +13,14 @@ public class KafkaOrderConsumerService : IKafkaOrderConsumerService
     
     public bool TryGetLastLongestOrder(out Order? order)
         => TryGetLast("longest", out order);
-    private bool TryGetLast(string topic, out Order? order)
+    
+    public bool TryGetLastProductsDictionary(out Dictionary<string, int>? productsDictionary)
+        => TryGetLast("productsCount", out productsDictionary);
+    private bool TryGetLast<T>(string topic, out T? returnObject)
     {
         var config = new ConsumerConfig
         {
-            GroupId = "getLast3",
+            GroupId = $"getLast3-{topic}",
             BootstrapServers = _url,
             AutoOffsetReset = AutoOffsetReset.Latest,
             EnableAutoCommit = false
@@ -50,9 +53,9 @@ public class KafkaOrderConsumerService : IKafkaOrderConsumerService
 
             try
             {
-                order = JsonSerializer.Deserialize<Order>(value);
+                returnObject = JsonSerializer.Deserialize<T>(value);
 
-                if (order is not null)
+                if (returnObject is not null)
                 {
                     Console.WriteLine("Success Deserialization!");
                     return true;
@@ -75,7 +78,7 @@ public class KafkaOrderConsumerService : IKafkaOrderConsumerService
             consumer.Close();
         }
 
-        order = null;
+        returnObject = default;
         return false;
     } 
 }
